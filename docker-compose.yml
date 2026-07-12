@@ -1,7 +1,9 @@
 version: '3.8'
 
 services:
+  # ──────────────────────────────────────────────
   # 1. MySQL Database
+  # ──────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     container_name: psts-mysql
@@ -19,9 +21,11 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
+  # ──────────────────────────────────────────────
   # 2. Eureka Server
+  # ──────────────────────────────────────────────
   eureka-server:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
@@ -29,238 +33,393 @@ services:
       args:
         SERVICE_NAME: eureka_server
     container_name: psts-eureka
-    command: java -jar /app/eureka_server/target/eureka_server-0.0.1-SNAPSHOT.jar
+    restart: always
     ports:
       - "8761:8761"
     networks:
       - psts-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -f http://localhost:8761/actuator/health || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 3
+      retries: 10
+      start_period: 60s
 
-  # 3. Backend Services
+  # ──────────────────────────────────────────────
+  # 3. Auth Service (port 8081)
+  # ──────────────────────────────────────────────
   auth-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: auth-service
     container_name: psts-auth
-    command: java -jar /app/auth-service/target/auth-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edu?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Database — uses AUTH_DB_* variables
+      - AUTH_DB_URL=jdbc:mysql://mysql:3306/edu?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - AUTH_DB_USERNAME=root
+      - AUTH_DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=auth-service
+      # JWT
       - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION_MS=86400000
+      # Google OAuth2
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - AUTH_MAIL_PASSWORD=${AUTH_MAIL_PASSWORD}
+      - AUTH_GOOGLE_REDIRECT_URI=http://35.247.128.131/login/oauth2/code/google
+      # Mail
+      - AUTH_MAIL_HOST=smtp.gmail.com
+      - AUTH_MAIL_PORT=587
+      - AUTH_MAIL_USERNAME=${MAIL_USERNAME}
+      - AUTH_MAIL_PASSWORD=${MAIL_PASSWORD}
     depends_on:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
+  # ──────────────────────────────────────────────
+  # 4. User Service (port 8082)
+  # ──────────────────────────────────────────────
   user-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: user-service
     container_name: psts-user
-    command: java -jar /app/user-service/target/user-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edu?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Database — uses USER_DB_* variables
+      - USER_DB_URL=jdbc:mysql://mysql:3306/edu?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - USER_DB_USERNAME=root
+      - USER_DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=user-service
+      # JWT
       - JWT_SECRET=${JWT_SECRET}
-      - USER_MAIL_PASSWORD=${AUTH_MAIL_PASSWORD}
+      - JWT_EXPIRATION_MS=86400000
+      # Google OAuth2
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - USER_GOOGLE_REDIRECT_URI=http://35.247.128.131/login/oauth2/code/google
+      # Mail
+      - USER_MAIL_HOST=smtp.gmail.com
+      - USER_MAIL_PORT=587
+      - USER_MAIL_USERNAME=${MAIL_USERNAME}
+      - USER_MAIL_PASSWORD=${MAIL_PASSWORD}
+      - APP_MAIL_TEST_MODE=false
     depends_on:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
+  # ──────────────────────────────────────────────
+  # 5. Classroom Service (port 8085)
+  # ──────────────────────────────────────────────
   classroom-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: classroom-service
     container_name: psts-classroom
-    command: java -jar /app/classroom-service/target/classroom-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/classroom_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Database — uses CLASSROOM_DB_* variables
+      - CLASSROOM_DB_URL=jdbc:mysql://mysql:3306/classroom_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - CLASSROOM_DB_USERNAME=root
+      - CLASSROOM_DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=classroom-service
+      # JWT
       - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION_MS=86400000
+      # Mail
+      - CLASSROOM_MAIL_HOST=smtp.gmail.com
+      - CLASSROOM_MAIL_PORT=587
+      - CLASSROOM_MAIL_USERNAME=${MAIL_USERNAME}
+      - CLASSROOM_MAIL_PASSWORD=${MAIL_PASSWORD}
+      # Frontend URL (for invite links etc.)
+      - CLASSROOM_FRONTEND_BASE_URL=http://35.247.128.131
+      # Supabase
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - CLASSROOM_MAIL_PASSWORD=${AUTH_MAIL_PASSWORD}
+      - SUPABASE_BUCKET=${SUPABASE_BUCKET}
     depends_on:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
+  # ──────────────────────────────────────────────
+  # 6. Test Service (port 8088)
+  # ──────────────────────────────────────────────
   test-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: test-service
     container_name: psts-test
-    command: java -jar /app/test-service/target/test-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
+      # Database — test-service uses SPRING_DATASOURCE_* (hardcoded in yml)
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/test_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=test-service
+      # JWT
       - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION_MS=86400000
+      # Cloudinary
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      # Python API
       - python.api.url=http://python-api:8001
     depends_on:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
+  # ──────────────────────────────────────────────
+  # 7. Image Service (port 8083)
+  # ──────────────────────────────────────────────
   image-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: image-service
     container_name: psts-image
-    command: java -jar /app/image-service/target/image-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
+      # Database — image-service uses SPRING_DATASOURCE_* (hardcoded in properties)
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/image_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=image-service
+      # Cloudinary — image-service uses cloudinary.* prefix (hardcoded in properties)
       - cloudinary.cloud-name=${CLOUDINARY_CLOUD_NAME}
       - cloudinary.api-key=${CLOUDINARY_API_KEY}
       - cloudinary.api-secret=${CLOUDINARY_API_SECRET}
+      # Python API
       - python.image.api-url=http://python-api:8001
     depends_on:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
+  # ──────────────────────────────────────────────
+  # 8. Textbook Service (port 8090)
+  # ──────────────────────────────────────────────
   textbook-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: textbook-service
     container_name: psts-textbook
-    command: java -jar /app/textbook-service/target/textbook-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/textbook_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Database — uses TEXTBOOK_DB_* variables
+      - TEXTBOOK_DB_URL=jdbc:mysql://mysql:3306/textbook_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - TEXTBOOK_DB_USERNAME=root
+      - TEXTBOOK_DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=textbook-service
     depends_on:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
+  # ──────────────────────────────────────────────
+  # 9. Lesson Service (port 8087)
+  # ──────────────────────────────────────────────
   lesson-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: lesson-service
     container_name: psts-lesson
-    command: java -jar /app/lesson-service/target/lesson-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/lesson_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Database — uses LESSON_DB_* variables
+      - LESSON_DB_URL=jdbc:mysql://mysql:3306/lesson_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - LESSON_DB_USERNAME=root
+      - LESSON_DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=lesson-service
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION_MS=86400000
+      # Supabase
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_BUCKET=${SUPABASE_BUCKET}
+      # Python API
+      - PYTHON_API_URL=http://python-api:8001
     depends_on:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
-  translate-service:
-    build:
-      context: ../PrimarySchoolTeacherSupportSystemBackend
-      dockerfile: Dockerfile
-    container_name: psts-translate
-    command: java -jar /app/translate-service/target/translate-service-0.0.1-SNAPSHOT.jar
-    environment:
-      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
-    depends_on:
-      eureka-server:
-        condition: service_started
-    networks:
-      - psts-network
-
+  # ──────────────────────────────────────────────
+  # 10. TTS Service (port 8084)
+  # ──────────────────────────────────────────────
   tts-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: tts-service
     container_name: psts-tts
-    command: java -jar /app/tts-service/target/tts-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
+      # Database — uses TTS_DB_URL + SPRING_DATASOURCE_USERNAME/PASSWORD
+      - TTS_DB_URL=jdbc:mysql://mysql:3306/tts_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json # Assume we add this later if needed
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=tts-service
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      # Cloudinary
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      # Python API
+      - PYTHON_API_URL=http://python-api:8001/api
     depends_on:
+      mysql:
+        condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
+  # ──────────────────────────────────────────────
+  # 11. Translate Service (port 8089)
+  # ──────────────────────────────────────────────
+  translate-service:
+    build:
+      context: ../PrimarySchoolTeacherSupportSystemBackend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: translate-service
+    container_name: psts-translate
+    restart: always
+    environment:
+      # Eureka
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=translate-service
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      # Python API
+      - PYTHON_API_URL=http://python-api:8001
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - psts-network
+
+  # ──────────────────────────────────────────────
+  # 12. Speech Recognition Service (port 8086)
+  # ──────────────────────────────────────────────
   speech-recognition-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: speech-recognition-service
     container_name: psts-speech
-    command: java -jar /app/speech-recognition-service/target/speech-recognition-service-0.0.1-SNAPSHOT.jar
+    restart: always
     environment:
+      # Eureka
       - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - eureka.instance.prefer-ip-address=true
+      - eureka.instance.hostname=speech-recognition-service
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      # Python API
+      - PYTHON_API_URL=http://python-api:8001
     depends_on:
       eureka-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - psts-network
 
-  # 4. Python API
+  # ──────────────────────────────────────────────
+  # 13. Python API (port 8001)
+  # ──────────────────────────────────────────────
   python-api:
     build:
       context: ../api-python
       dockerfile: Dockerfile
     container_name: psts-python-api
-    ports:
-      - "8001:8001"
+    restart: always
     environment:
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - HOST=0.0.0.0
+      - PORT=8001
+      - DEBUG=False
     networks:
       - psts-network
 
-  # 5. Frontend & Reverse Proxy
+  # ──────────────────────────────────────────────
+  # 14. Frontend (Nginx reverse proxy + static)
+  # ──────────────────────────────────────────────
   frontend:
     build:
       context: ../PrimarySchoolTeacherSupportSystemFrontEnd
       dockerfile: Dockerfile
     container_name: psts-frontend
+    restart: always
     ports:
       - "80:80"
     volumes:
@@ -269,6 +428,7 @@ services:
       - auth-service
       - user-service
       - test-service
+      - python-api
     networks:
       - psts-network
 
