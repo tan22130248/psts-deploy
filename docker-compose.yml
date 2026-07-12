@@ -1,81 +1,66 @@
 version: '3.8'
 
 services:
-  # ==============================================================================
-  # Database Service
-  # ==============================================================================
+  # 1. MySQL Database
   mysql:
     image: mysql:8.0
-    container_name: mysql-db
+    container_name: psts-mysql
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
-      - mysql-data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql-data:/var/lib/mysql
     networks:
       - psts-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ==============================================================================
-  # Service Discovery
-  # ==============================================================================
+  # 2. Eureka Server
   eureka-server:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: eureka_server
-    container_name: eureka-server
-    restart: always
+    container_name: psts-eureka
+    command: java -jar /app/eureka_server/target/eureka_server-0.0.1-SNAPSHOT.jar
     ports:
       - "8761:8761"
     networks:
       - psts-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # ==============================================================================
-  # API Gateway
-  # ==============================================================================
-  api-gateway:
-    build:
-      context: ../PrimarySchoolTeacherSupportSystemBackend
-      dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: api-gateway
-    container_name: api-gateway
-    restart: always
-    ports:
-      - "8080:8080"
-    environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - TEST_SERVICE_URL=${TEST_SERVICE_URL}
-      - PYTHON_CANVAS_API_URL=${PYTHON_CANVAS_API_URL}
-    depends_on:
-      - eureka-server
-    networks:
-      - psts-network
-
-  # ==============================================================================
-  # Spring Boot Microservices
-  # ==============================================================================
+  # 3. Backend Services
   auth-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: auth-service
-    container_name: auth-service
-    restart: always
+    container_name: psts-auth
+    command: java -jar /app/auth-service/target/auth-service-0.0.1-SNAPSHOT.jar
     environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - SPRING_DATASOURCE_URL=${AUTH_DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edu?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
       - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - AUTH_MAIL_PASSWORD=${AUTH_MAIL_PASSWORD}
     depends_on:
-      - mysql
-      - eureka-server
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
     networks:
       - psts-network
 
@@ -83,83 +68,20 @@ services:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: user-service
-    container_name: user-service
-    restart: always
+    container_name: psts-user
+    command: java -jar /app/user-service/target/user-service-0.0.1-SNAPSHOT.jar
     environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - SPRING_DATASOURCE_URL=${USER_DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edu?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
       - JWT_SECRET=${JWT_SECRET}
+      - USER_MAIL_PASSWORD=${AUTH_MAIL_PASSWORD}
     depends_on:
-      - mysql
-      - eureka-server
-    networks:
-      - psts-network
-
-  image-service:
-    build:
-      context: ../PrimarySchoolTeacherSupportSystemBackend
-      dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: image-service
-    container_name: image-service
-    restart: always
-    environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - IMAGE_DB_URL=${IMAGE_DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
-      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
-      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
-      - PYTHON_API_URL=${PYTHON_API_URL}
-    depends_on:
-      - mysql
-      - eureka-server
-    networks:
-      - psts-network
-
-  tts-service:
-    build:
-      context: ../PrimarySchoolTeacherSupportSystemBackend
-      dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: tts-service
-    container_name: tts-service
-    restart: always
-    environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - TTS_DB_URL=${TTS_DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
-      - PYTHON_API_URL=${PYTHON_API_URL}
-      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
-      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
-    depends_on:
-      - mysql
-      - eureka-server
-    networks:
-      - psts-network
-
-  speech-recognition-service:
-    build:
-      context: ../PrimarySchoolTeacherSupportSystemBackend
-      dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: speech-recognition-service
-    container_name: speech-recognition-service
-    restart: always
-    environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - PYTHON_API_URL=${PYTHON_API_URL}
-      - JWT_SECRET=${JWT_SECRET}
-    depends_on:
-      - eureka-server
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
     networks:
       - psts-network
 
@@ -167,22 +89,22 @@ services:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: classroom-service
-    container_name: classroom-service
-    restart: always
+    container_name: psts-classroom
+    command: java -jar /app/classroom-service/target/classroom-service-0.0.1-SNAPSHOT.jar
     environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - SPRING_DATASOURCE_URL=${CLASSROOM_DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/classroom_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
       - JWT_SECRET=${JWT_SECRET}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - SUPABASE_BUCKET=${SUPABASE_BUCKET}
+      - CLASSROOM_MAIL_PASSWORD=${AUTH_MAIL_PASSWORD}
     depends_on:
-      - mysql
-      - eureka-server
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
     networks:
       - psts-network
 
@@ -190,46 +112,46 @@ services:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: test-service
-    container_name: test-service
-    restart: always
+    container_name: psts-test
+    command: java -jar /app/test-service/target/test-service-0.0.1-SNAPSHOT.jar
     environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - TEST_DB_URL=${TEST_DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/test_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
       - JWT_SECRET=${JWT_SECRET}
-      - PYTHON_API_URL=${PYTHON_API_URL}
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - python.api.url=http://python-api:8001
     depends_on:
-      - mysql
-      - eureka-server
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
     networks:
       - psts-network
 
-  lesson-service:
+  image-service:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: lesson-service
-    container_name: lesson-service
-    restart: always
+    container_name: psts-image
+    command: java -jar /app/image-service/target/image-service-0.0.1-SNAPSHOT.jar
     environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - SPRING_DATASOURCE_URL=${LESSON_DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - SUPABASE_BUCKET=${SUPABASE_BUCKET}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/image_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - cloudinary.cloud-name=${CLOUDINARY_CLOUD_NAME}
+      - cloudinary.api-key=${CLOUDINARY_API_KEY}
+      - cloudinary.api-secret=${CLOUDINARY_API_SECRET}
+      - python.image.api-url=http://python-api:8001
     depends_on:
-      - mysql
-      - eureka-server
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
     networks:
       - psts-network
 
@@ -237,19 +159,41 @@ services:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: textbook-service
-    container_name: textbook-service
-    restart: always
+    container_name: psts-textbook
+    command: java -jar /app/textbook-service/target/textbook-service-0.0.1-SNAPSHOT.jar
     environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - SPRING_DATASOURCE_URL=${TEXTBOOK_DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/textbook_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
     depends_on:
-      - mysql
-      - eureka-server
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - psts-network
+
+  lesson-service:
+    build:
+      context: ../PrimarySchoolTeacherSupportSystemBackend
+      dockerfile: Dockerfile
+    container_name: psts-lesson
+    command: java -jar /app/lesson-service/target/lesson-service-0.0.1-SNAPSHOT.jar
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/lesson_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
     networks:
       - psts-network
 
@@ -257,71 +201,80 @@ services:
     build:
       context: ../PrimarySchoolTeacherSupportSystemBackend
       dockerfile: Dockerfile
-      args:
-        SERVICE_NAME: translate-service
-    container_name: translate-service
-    restart: always
+    container_name: psts-translate
+    command: java -jar /app/translate-service/target/translate-service-0.0.1-SNAPSHOT.jar
     environment:
-      - EUREKA_DEFAULT_ZONE=${EUREKA_DEFAULT_ZONE}
-      - PYTHON_API_URL=${PYTHON_API_URL}
-      - JWT_SECRET=${JWT_SECRET}
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
     depends_on:
-      - eureka-server
+      eureka-server:
+        condition: service_started
     networks:
       - psts-network
 
-  # ==============================================================================
-  # Python FastAPI Service
-  # ==============================================================================
+  tts-service:
+    build:
+      context: ../PrimarySchoolTeacherSupportSystemBackend
+      dockerfile: Dockerfile
+    container_name: psts-tts
+    command: java -jar /app/tts-service/target/tts-service-0.0.1-SNAPSHOT.jar
+    environment:
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json # Assume we add this later if needed
+    depends_on:
+      eureka-server:
+        condition: service_started
+    networks:
+      - psts-network
+
+  speech-recognition-service:
+    build:
+      context: ../PrimarySchoolTeacherSupportSystemBackend
+      dockerfile: Dockerfile
+    container_name: psts-speech
+    command: java -jar /app/speech-recognition-service/target/speech-recognition-service-0.0.1-SNAPSHOT.jar
+    environment:
+      - EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_started
+    networks:
+      - psts-network
+
+  # 4. Python API
   python-api:
     build:
       context: ../api-python
       dockerfile: Dockerfile
-    container_name: python-api
-    restart: always
+    container_name: psts-python-api
+    ports:
+      - "8001:8001"
     environment:
-      - HOST=0.0.0.0
-      - PORT=8001
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
     networks:
       - psts-network
 
-  # ==============================================================================
-  # Frontend React App (built and served by internal Nginx)
-  # ==============================================================================
+  # 5. Frontend & Reverse Proxy
   frontend:
     build:
       context: ../PrimarySchoolTeacherSupportSystemFrontEnd
       dockerfile: Dockerfile
-    container_name: frontend
-    restart: always
-    networks:
-      - psts-network
-
-  # ==============================================================================
-  # Global Nginx Reverse Proxy (Gateway for external traffic)
-  # ==============================================================================
-  nginx:
-    image: nginx:alpine
-    container_name: nginx-reverse-proxy
-    restart: always
+    container_name: psts-frontend
     ports:
       - "80:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
-      - frontend
-      - api-gateway
-      - python-api
+      - auth-service
+      - user-service
+      - test-service
     networks:
       - psts-network
+
+volumes:
+  mysql-data:
 
 networks:
   psts-network:
     driver: bridge
-
-volumes:
-  mysql-data:
-    driver: local
