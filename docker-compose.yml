@@ -71,7 +71,7 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       # OAuth callback public URL (Nginx → user-service). auth-service OTP hiện là stub.
-      - AUTH_GOOGLE_REDIRECT_URI=http://34.87.139.63/login/oauth2/code/google
+      - AUTH_GOOGLE_REDIRECT_URI=https://teachprimary.dev/login/oauth2/code/google
       # Mail
       - AUTH_MAIL_HOST=smtp.gmail.com
       - AUTH_MAIL_PORT=587
@@ -111,7 +111,8 @@ services:
       # Google OAuth2
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - USER_GOOGLE_REDIRECT_URI=http://34.87.139.63/login/oauth2/code/google
+      - USER_GOOGLE_REDIRECT_URI=https://teachprimary.dev/login/oauth2/code/google
+      - APP_FRONTEND_URL=https://teachprimary.dev
       # Mail
       - USER_MAIL_HOST=smtp.gmail.com
       - USER_MAIL_PORT=587
@@ -155,7 +156,7 @@ services:
       - CLASSROOM_MAIL_USERNAME=${MAIL_USERNAME}
       - CLASSROOM_MAIL_PASSWORD=${MAIL_PASSWORD}
       # Frontend URL (for invite links etc.)
-      - CLASSROOM_FRONTEND_BASE_URL=http://34.87.139.63
+      - CLASSROOM_FRONTEND_BASE_URL=https://teachprimary.dev
       # Supabase
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
@@ -298,9 +299,9 @@ services:
       - PYTHON_API_URL=http://python-api:8001
       # Collabora (optional; empty defaults so service still starts)
       - COLLABORA_DISCOVERY_URL=${COLLABORA_DISCOVERY_URL:-}
-      - COLLABORA_WOPI_PUBLIC_URL=${COLLABORA_WOPI_PUBLIC_URL:-http://34.87.139.63/wopi/files}
-      - COLLABORA_ASSET_PUBLIC_URL=${COLLABORA_ASSET_PUBLIC_URL:-http://34.87.139.63/api/lessons/drafts/collabora/assets}
-      - COLLABORA_POST_MESSAGE_ORIGIN=${COLLABORA_POST_MESSAGE_ORIGIN:-http://34.87.139.63}
+      - COLLABORA_WOPI_PUBLIC_URL=${COLLABORA_WOPI_PUBLIC_URL:-https://teachprimary.dev/wopi/files}
+      - COLLABORA_ASSET_PUBLIC_URL=${COLLABORA_ASSET_PUBLIC_URL:-https://teachprimary.dev/api/lessons/drafts/collabora/assets}
+      - COLLABORA_POST_MESSAGE_ORIGIN=${COLLABORA_POST_MESSAGE_ORIGIN:-https://teachprimary.dev}
     depends_on:
       mysql:
         condition: service_healthy
