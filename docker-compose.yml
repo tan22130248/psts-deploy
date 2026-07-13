@@ -69,6 +69,7 @@ services:
       # Google OAuth2
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      # OAuth callback public URL (Nginx → user-service). auth-service OTP hiện là stub.
       - AUTH_GOOGLE_REDIRECT_URI=http://34.87.139.63/login/oauth2/code/google
       # Mail
       - AUTH_MAIL_HOST=smtp.gmail.com
