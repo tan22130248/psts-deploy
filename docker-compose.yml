@@ -37,11 +37,12 @@ services:
     networks:
       - psts-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8761/actuator/health || exit 1"]
+      # JRE image không có curl/actuator — chỉ kiểm tra port 8761 mở
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8761'"]
       interval: 15s
       timeout: 10s
-      retries: 10
-      start_period: 60s
+      retries: 20
+      start_period: 120s
 
   # ──────────────────────────────────────────────
   # 3. Auth Service (port 8081)
