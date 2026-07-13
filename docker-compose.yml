@@ -296,6 +296,11 @@ services:
       - SUPABASE_BUCKET=${SUPABASE_BUCKET}
       # Python API
       - PYTHON_API_URL=http://python-api:8001
+      # Collabora (optional; empty defaults so service still starts)
+      - COLLABORA_DISCOVERY_URL=${COLLABORA_DISCOVERY_URL:-}
+      - COLLABORA_WOPI_PUBLIC_URL=${COLLABORA_WOPI_PUBLIC_URL:-http://34.87.139.63/wopi/files}
+      - COLLABORA_ASSET_PUBLIC_URL=${COLLABORA_ASSET_PUBLIC_URL:-http://34.87.139.63/api/lessons/drafts/collabora/assets}
+      - COLLABORA_POST_MESSAGE_ORIGIN=${COLLABORA_POST_MESSAGE_ORIGIN:-http://34.87.139.63}
     depends_on:
       mysql:
         condition: service_healthy
