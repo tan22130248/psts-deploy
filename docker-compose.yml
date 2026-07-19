@@ -451,13 +451,18 @@ services:
     restart: always
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Cloudflare Origin certs on VM (required by nginx/default.conf listen 443 ssl)
+      - ./certs:/etc/ssl/cloudflare:ro
     depends_on:
       - auth-service
       - user-service
       - test-service
       - python-api
+      - lesson-service
+      - collabora
     networks:
       - psts-network
 
