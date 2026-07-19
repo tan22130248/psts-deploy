@@ -297,8 +297,9 @@ services:
       - SUPABASE_BUCKET=${SUPABASE_BUCKET}
       # Python API
       - PYTHON_API_URL=http://python-api:8001
-      # Collabora (optional; empty defaults so service still starts)
-      - COLLABORA_DISCOVERY_URL=${COLLABORA_DISCOVERY_URL:-}
+      # Collabora Online (CODE) — discovery must reach collabora container
+      - COLLABORA_DISCOVERY_URL=${COLLABORA_DISCOVERY_URL:-http://collabora:9980/hosting/discovery}
+      - COLLABORA_PUBLIC_URL=${COLLABORA_PUBLIC_URL:-https://teachprimary.dev}
       - COLLABORA_WOPI_PUBLIC_URL=${COLLABORA_WOPI_PUBLIC_URL:-https://teachprimary.dev/wopi/files}
       - COLLABORA_ASSET_PUBLIC_URL=${COLLABORA_ASSET_PUBLIC_URL:-https://teachprimary.dev/api/lessons/drafts/collabora/assets}
       - COLLABORA_POST_MESSAGE_ORIGIN=${COLLABORA_POST_MESSAGE_ORIGIN:-https://teachprimary.dev}
@@ -307,6 +308,28 @@ services:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
+      collabora:
+        condition: service_started
+    networks:
+      - psts-network
+
+  # ──────────────────────────────────────────────
+  # 9b. Collabora Online (CODE) — port 9980 internal
+  # ──────────────────────────────────────────────
+  collabora:
+    image: collabora/code:24.04.12.3.1
+    container_name: psts-collabora
+    restart: always
+    environment:
+      # Escape dots for Collabora domain regex
+      - domain=teachprimary\\.dev|www\\.teachprimary\\.dev
+      - aliasgroup1=https://teachprimary.dev:443,https://www.teachprimary.dev:443
+      - extra_params=--o:ssl.enable=false --o:ssl.termination=true --o:net.frame_ancestors=https://teachprimary.dev https://www.teachprimary.dev
+      - username=${COLLABORA_ADMIN_USER:-admin}
+      - password=${COLLABORA_ADMIN_PASSWORD:-collabora}
+      - DONT_GEN_SSL_CERT=true
+    cap_add:
+      - MKNOD
     networks:
       - psts-network
 
