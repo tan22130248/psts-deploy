@@ -310,6 +310,9 @@ services:
         condition: service_healthy
       collabora:
         condition: service_started
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - psts-network
 
