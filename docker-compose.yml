@@ -311,6 +311,7 @@ services:
       collabora:
         condition: service_started
     dns:
+      - 169.254.169.254
       - 8.8.8.8
       - 1.1.1.1
     networks:
