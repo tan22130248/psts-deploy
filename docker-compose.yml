@@ -201,7 +201,9 @@ services:
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
       # Python API
-      - python.api.url=http://python-api:8001
+      # Spring maps this standard environment variable to python.api.url.
+      # A variable name containing dots is not portable across Docker/VM shells.
+      - PYTHON_API_URL=http://python-api:8001
     depends_on:
       mysql:
         condition: service_healthy
