@@ -157,6 +157,8 @@ services:
       - CLASSROOM_MAIL_PASSWORD=${MAIL_PASSWORD}
       # Frontend URL (for invite links etc.)
       - CLASSROOM_FRONTEND_BASE_URL=https://teachprimary.dev
+      # Test validation for assignment/classroom posts
+      - TEST_SERVICE_URL=${TEST_SERVICE_URL:-http://test-service:8088}
       # Supabase
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
