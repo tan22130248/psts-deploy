@@ -196,6 +196,8 @@ services:
       - JWT_EXPIRATION_MS=86400000
       # Cloudinary
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      # Classroom post opening-time validation
+      - CLASSROOM_SERVICE_URL=http://classroom-service:8085
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
       # Python API
