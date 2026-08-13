@@ -194,6 +194,8 @@ services:
       # JWT
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION_MS=86400000
+      # Resolve the current role from users/user_roles for admin-only test actions.
+      - USER_SERVICE_URL=http://user-service:8082/api
       # Cloudinary
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       # Classroom post opening-time validation
