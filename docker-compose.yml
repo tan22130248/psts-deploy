@@ -427,8 +427,11 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       # Python API
       - PYTHON_API_URL=http://python-api:8001
+      - PYTHON_API_READ_TIMEOUT=85000
     depends_on:
       eureka-server:
+        condition: service_healthy
+      python-api:
         condition: service_healthy
     networks:
       - psts-network
@@ -449,6 +452,12 @@ services:
       - HOST=0.0.0.0
       - PORT=8001
       - DEBUG=False
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from urllib.request import urlopen; urlopen('http://127.0.0.1:8001/health', timeout=5)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
     networks:
       - psts-network
 
